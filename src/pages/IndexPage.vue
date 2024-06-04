@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import logo from '@/assets/logo.png'
 import { addChat, delChat, listChat } from '@/api/chat'
-import { listChatMessage, sendImageMessage, sendTextMessage, streamMessage } from '@/api/chat/message'
+import { listChatMessage, sendImageMessage, sendTextMessage, streamMessage, unSubscribe } from '@/api/chat/message'
 import type { ChatVO } from '@/api/chat/types'
 import type { ChatMessageVO } from '@/api/chat/message/types'
 import { EventSourcePolyfill } from 'event-source-polyfill'
@@ -10,6 +10,7 @@ import { globalHeaders } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 import { listModel } from '@/api/model'
 import type { ModelVO } from '@/api/model/types'
+import ImagePreview from '@/components/ImagePreview.vue'
 
 const modelList = ref<ModelVO[]>([])
 const currentChatId = ref<number | null>(null)
@@ -20,13 +21,14 @@ const sendMessage = ref('')
 const model = ref('BAIDU')
 const sessionId = ref<string | null>(null)
 const tempMessage = ref<ChatMessageVO>({} as ChatMessageVO)
+const sendBtn = ref(false)
 
 const changeType = (type: string) => {
   chatType.value = type
   if (type === 'text') {
     model.value = 'BAIDU'
   } else {
-    model.value = 'CZHAN_AI'
+    model.value = 'BAIDU'
   }
   queryChatList()
 }
@@ -78,7 +80,18 @@ const handeSend = async () => {
       content: '加载中...',
     } as ChatMessageVO
     eventMessage()
-    await streamMessage(sessionId.value)
+    setTimeout(async () => {
+      if (sessionId.value) {
+        await streamMessage(sessionId.value)
+      }
+    }, 500)
+  }
+}
+
+const handeSendMessage = () => {
+  if (sendMessage.value !== '') {
+    sendBtn.value = true
+    handeSend()
   }
 }
 
@@ -107,15 +120,19 @@ const eventMessage = () => {
         }
       }
     } else {
+      eventSource.close()
+      if (sessionId.value) {
+        unSubscribe(sessionId.value)
+      }
+      sendBtn.value = false
       sessionId.value = null
       chatMessageList.value.push(tempMessage.value)
-      eventSource.close()
-      //axios.get('/chat-master/sse/unSubscribe?sessionId=' + sessionId)
     }
   })
 
   eventSource.addEventListener('error', (event) => {
     console.error('error', event)
+    sendBtn.value = false
   })
 }
 
@@ -134,13 +151,13 @@ const queryChatMessageList = async () => {
   chatMessageList.value = res.rows
 }
 
-const queryModelList = async () => {
+/*const queryModelList = async () => {
   const res = await listModel()
   modelList.value = res.data
-}
+}*/
 
 onMounted(() => {
-  queryModelList()
+  //queryModelList()
   queryChatList()
 })
 </script>
@@ -174,7 +191,7 @@ onMounted(() => {
       </div>
 
       <div class="absolute bottom-0 w-full p-3.5">
-        模型：{{model}}
+        模型：{{ model }}
       </div>
     </div>
 
@@ -239,8 +256,15 @@ onMounted(() => {
               <div class="p-3.5 w-max rounded" :class="item.role === 'user' ? 'bg-blue-400' : 'bg-white'">
                 <div v-if="item.contentType == 'TEXT' || (item.role === 'user' && item.contentType == 'IMAGE')"
                      v-html="item.content"></div>
-                <div v-if="item.contentType == 'IMAGE'" class="flex flex-row justify-between items-start">
-                  <img v-for="(image, index) in item.imageList" :key="index" :src="image" alt="" />
+                <div v-if="item.contentType == 'IMAGE' && item.role === 'assistant'"
+                     class="flex flex-row justify-between items-start">
+                  <div class="w-1/2 m-1.5">
+                    <image-preview
+                      v-for="(image, index) in item.imageList" :key="index"
+                      :image-src="image"
+                      :thumbnail="image"
+                    />
+                  </div>
                 </div>
               </div>
               <div v-if="item.role === 'user'" class="ml-2 px-0.5 bg-blue-400 rounded-full">
@@ -258,7 +282,11 @@ onMounted(() => {
               <div class="p-3.5 w-max rounded bg-white">
                 <div v-if="tempMessage.contentType == 'TEXT'" v-html="tempMessage.content"></div>
                 <div v-if="tempMessage.contentType == 'IMAGE'" class="flex flex-row justify-between items-start">
-                  <img v-for="(image, index) in tempMessage.imageList" :key="index" :src="image" alt="" />
+                  <image-preview
+                    v-for="(image, index) in tempMessage.imageList" :key="index"
+                    :image-src="image"
+                    :thumbnail="image"
+                  />
                 </div>
               </div>
               <div class="w-10 ml-2.5"></div>
@@ -274,9 +302,10 @@ onMounted(() => {
                 class="flex-grow h-full border-none resize-none bg-transparent focus:outline-none overscroll-y-none"
                 placeholder="请输入问题（shift+回车可换行输入）"></textarea>
             <button
-              class="bg-blue-500 text-white ml-2 px-4 py-2 rounded"
-              :disabled="sessionId !== null && sendMessage !== ''"
-              @click="handeSend">
+              class="text-white ml-2 px-4 py-2 rounded"
+              :class="sendBtn ? 'bg-gray-200' : 'bg-blue-500'"
+              :disabled="sendBtn"
+              @click="handeSendMessage">
               发送
             </button>
           </div>

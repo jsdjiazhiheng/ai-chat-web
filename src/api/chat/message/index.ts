@@ -1,6 +1,7 @@
 import request from '@/utils/request'
 import type { AxiosPromise } from 'axios'
 import type { ChatMessageVO } from '@/api/chat/message/types'
+import type { UnwrapRef } from 'vue'
 
 /**
  * 查询会话消息列表
@@ -63,5 +64,15 @@ export const streamMessage = (sessionId: string) => {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
+  })
+}
+
+export const unSubscribe = (sessionId: string) => {
+  return request({
+    url: '/sse/unSubscribe',
+    method: 'get',
+    params: {
+      sessionId: sessionId,
+    }
   })
 }
