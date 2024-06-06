@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import logo from '@/assets/logo.png'
+import { marked } from 'marked'
+import ClipboardJS from 'clipboard'
 import { addChat, delChat, listChat } from '@/api/chat'
 import { listChatMessage, sendImageMessage, sendTextMessage, streamMessage, unSubscribe } from '@/api/chat/message'
 import type { ChatVO } from '@/api/chat/types'
@@ -8,7 +10,6 @@ import type { ChatMessageVO } from '@/api/chat/message/types'
 import { EventSourcePolyfill } from 'event-source-polyfill'
 import { globalHeaders } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
-import { listModel } from '@/api/model'
 import type { ModelVO } from '@/api/model/types'
 import ImagePreview from '@/components/ImagePreview.vue'
 
@@ -22,6 +23,7 @@ const model = ref('BAIDU')
 const sessionId = ref<string | null>(null)
 const tempMessage = ref<ChatMessageVO>({} as ChatMessageVO)
 const sendBtn = ref(false)
+const messageDivRef = ref<HTMLDivElement | null>(null)
 
 const changeType = (type: string) => {
   chatType.value = type
@@ -47,6 +49,7 @@ const changeChat = (chatId: number | null) => {
 const handeAddChat = async (title: string) => {
   const res = await addChat(chatType.value, title)
   console.log(res)
+  chatList.value.unshift(res.data)
   currentChatId.value = res.data.id
   changeChat(currentChatId.value)
 }
@@ -72,6 +75,9 @@ const handeSend = async () => {
       res = await sendImageMessage(model.value, currentChatId.value, sendMessage.value)
     }
     chatMessageList.value.push(res.data)
+    await nextTick(() => {
+      scrollToBottom()
+    })
     sessionId.value = res.data.messageId
     sendMessage.value = ''
     tempMessage.value = {
@@ -79,6 +85,9 @@ const handeSend = async () => {
       contentType: 'TEXT',
       content: '加载中...',
     } as ChatMessageVO
+    await nextTick(() => {
+      scrollToBottom()
+    })
     eventMessage()
     setTimeout(async () => {
       if (sessionId.value) {
@@ -92,6 +101,20 @@ const handeSendMessage = () => {
   if (sendMessage.value !== '') {
     sendBtn.value = true
     handeSend()
+  }
+}
+
+const handleKeydown = (event: KeyboardEvent) => {
+  console.log(event)
+  if (event.key === 'Enter') {
+    if (event.shiftKey) {
+      event.preventDefault()
+      // 手动添加换行符
+      sendMessage.value += '\n'
+    } else {
+      handeSendMessage()
+      event.preventDefault()
+    }
   }
 }
 
@@ -117,6 +140,9 @@ const eventMessage = () => {
           isAdd = true
         } else {
           tempMessage.value.content += message.content
+          nextTick(() => {
+            scrollToBottom()
+          })
         }
       }
     } else {
@@ -127,6 +153,9 @@ const eventMessage = () => {
       sendBtn.value = false
       sessionId.value = null
       chatMessageList.value.push(tempMessage.value)
+      nextTick(() => {
+        scrollToBottom()
+      })
     }
   })
 
@@ -149,6 +178,31 @@ const queryChatList = async () => {
 const queryChatMessageList = async () => {
   const res: any = await listChatMessage(currentChatId.value)
   chatMessageList.value = res.rows
+  await nextTick(() => {
+    scrollToBottom()
+  })
+}
+
+const scrollToBottom = () => {
+  if (messageDivRef.value) {
+    messageDivRef.value.scrollTop = messageDivRef.value.scrollHeight;
+  }
+};
+
+const getHtml = (content: string): string => {
+  const res = marked.parse(content, {
+    gfm: true,
+    breaks: true,
+  })
+  let html: string = ''
+  if (typeof res === 'string') {
+    html = res
+  } else {
+    res.then((value) => {
+      html = value
+    })
+  }
+  return html
 }
 
 /*const queryModelList = async () => {
@@ -217,8 +271,8 @@ onMounted(() => {
           class="flex items-center justify-between hover:bg-gray-100 p-3.5"
           @click="changeChat(item.id)"
         >
-          <div class="flex flex-col flex-grow">
-            <div>{{ item.title }}</div>
+          <div class="flex flex-col flex-grow w-4/5">
+            <div class="overflow-hidden whitespace-nowrap text-ellipsis">{{ item.title }}</div>
             <div class="text-xs">{{ item.createTime }}</div>
           </div>
           <div>
@@ -233,7 +287,7 @@ onMounted(() => {
 
       <div class="h-screen flex flex-col lg:w-8/12 md:w-10/12 sm:w-11/12">
         <!-- 可滚动的消息区域 -->
-        <div ref="messageDiv" class="flex-grow flex flex-col w-full mt-4 rounded overflow-y-auto p-4">
+        <div ref="messageDivRef" class="flex-grow flex flex-col w-full mt-4 rounded scroll-smooth overflow-y-auto p-4">
           <div class="flex flex-row my-3.5 items-start justify-start text-black">
             <div class="mr-2 px-0.5 bg-white rounded-full">
               <span class="i-mdi-user text-4xl"></span>
@@ -253,11 +307,14 @@ onMounted(() => {
               <div v-if="item.role === 'assistant'" class="mr-2 px-0.5 bg-white rounded-full">
                 <span class="i-mdi-user text-4xl"></span>
               </div>
-              <div class="p-3.5 w-max rounded" :class="item.role === 'user' ? 'bg-blue-400' : 'bg-white'">
-                <div v-if="item.contentType == 'TEXT' || (item.role === 'user' && item.contentType == 'IMAGE')"
-                     v-html="item.content"></div>
-                <div v-if="item.contentType == 'IMAGE' && item.role === 'assistant'"
-                     class="flex flex-row justify-between items-start">
+              <div class="p-3.5 w-max flex flex-col rounded message-content"
+                   :class="item.role === 'user' ? 'bg-blue-400' : 'bg-white'">
+                <div
+                  v-if="item.contentType == 'TEXT' || (item.role === 'user' && item.contentType == 'IMAGE')"
+                  v-highlight v-html="getHtml(item.content)"></div>
+                <div
+                  v-if="item.contentType == 'IMAGE' && item.role === 'assistant'"
+                  class="flex flex-row justify-between items-start">
                   <div class="w-1/2 m-1.5">
                     <image-preview
                       v-for="(image, index) in item.imageList" :key="index"
@@ -265,6 +322,9 @@ onMounted(() => {
                       :thumbnail="image"
                     />
                   </div>
+                </div>
+                <div v-if="item.role === 'assistant'" class="w-full p-2.5 mt-3.5 flex flex-row items-end justify-end">
+                  <span class="i-mdi-content-copy text-xl hover:cursor-pointer "></span>
                 </div>
               </div>
               <div v-if="item.role === 'user'" class="ml-2 px-0.5 bg-blue-400 rounded-full">
@@ -279,8 +339,8 @@ onMounted(() => {
               <div class="mr-2 px-0.5 bg-white rounded-full">
                 <span class="i-mdi-user text-4xl"></span>
               </div>
-              <div class="p-3.5 w-max rounded bg-white">
-                <div v-if="tempMessage.contentType == 'TEXT'" v-html="tempMessage.content"></div>
+              <div class="p-3.5 w-max message-content rounded bg-white">
+                <div v-if="tempMessage.contentType == 'TEXT'" v-highlight v-html="getHtml(tempMessage.content)"></div>
                 <div v-if="tempMessage.contentType == 'IMAGE'" class="flex flex-row justify-between items-start">
                   <image-preview
                     v-for="(image, index) in tempMessage.imageList" :key="index"
@@ -300,7 +360,9 @@ onMounted(() => {
               <textarea
                 v-model="sendMessage"
                 class="flex-grow h-full border-none resize-none bg-transparent focus:outline-none overscroll-y-none"
-                placeholder="请输入问题（shift+回车可换行输入）"></textarea>
+                placeholder="请输入问题（shift+回车可换行输入）"
+                @keydown="handleKeydown"
+              ></textarea>
             <button
               class="text-white ml-2 px-4 py-2 rounded"
               :class="sendBtn ? 'bg-gray-200' : 'bg-blue-500'"
@@ -330,5 +392,13 @@ textarea:focus {
 
 textarea::-webkit-scrollbar {
   display: none;
+}
+
+.message-content pre code {
+  border-radius: 5px !important;
+}
+
+.message-content * {
+  line-height: 1.5;
 }
 </style>
