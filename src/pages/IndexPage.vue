@@ -305,12 +305,12 @@ onMounted(() => {
 
       <div class="h-screen flex flex-col lg:w-8/12 md:w-10/12 sm:w-11/12">
         <!-- 可滚动的消息区域 -->
-        <div ref="messageDivRef" class="flex-grow flex flex-col w-full mt-4 rounded scroll-smooth overflow-y-auto p-4">
-          <div class="flex flex-row my-3.5 items-start justify-start text-black">
-            <div class="mr-2 px-0.5 bg-white rounded-full">
+        <div ref="messageDivRef" class="flex-grow flex flex-col w-full mt-4 rounded scroll-smooth overflow-y-auto p-4 pr-8">
+          <div class="flex flex-row my-3.5 p-3.5 items-start justify-start rounded text-black bg-white">
+            <div class="mr-2 px-0.5">
               <span class="i-mdi-user text-4xl"></span>
             </div>
-            <div class="p-3.5 w-max rounded bg-white">
+            <div class="w-max">
               <div>你好，我是AI助手~</div>
               <div>你有什么问题都可以随时问我</div>
             </div>
@@ -319,14 +319,15 @@ onMounted(() => {
 
           <template v-for="(item, messageIndex) in chatMessageList" :key="item.id">
             <div
-              class="flex flex-row my-3.5 items-start"
-              :class="item.role === 'user' ? 'justify-end text-white' : 'justify-start text-black'">
-              <div v-if="item.role === 'user'" class="w-10 mr-2.5"></div>
-              <div v-if="item.role === 'assistant'" class="mr-2 px-0.5 bg-white rounded-full">
-                <span class="i-mdi-user text-4xl"></span>
+              class="flex flex-row my-3.5 p-3.5 rounded"
+              :class="item.role === 'user' ? 'text-black' : 'text-black bg-white'">
+              <div v-if="item.role === 'user'" class="mr-2 px-0.5 justify-center items-center bg-blue-400 text-white rounded-full">
+                <span class="i-mdi-user text-3xl"></span>
               </div>
-              <div class="py-3.5 px-6 w-max flex flex-col rounded message-content"
-                   :class="item.role === 'user' ? 'bg-blue-400' : 'bg-white'">
+              <div v-if="item.role === 'assistant'" class="mr-2 px-0.5">
+                <span class="i-mdi-user text-3xl"></span>
+              </div>
+              <div class="w-max flex flex-col message-content">
                 <div
                   v-if="item.contentType == 'TEXT' || (item.role === 'user' && item.contentType == 'IMAGE')"
                   v-highlight v-html="getHtml(item.content)"></div>
@@ -348,10 +349,6 @@ onMounted(() => {
                         :class="'copy-btn-' +  messageIndex"></span>
                 </div>
               </div>
-              <div v-if="item.role === 'user'" class="ml-2 px-0.5 bg-blue-400 rounded-full">
-                <span class="i-mdi-user text-4xl"></span>
-              </div>
-              <div v-if="item.role === 'assistant'" class="w-10 ml-2.5"></div>
             </div>
           </template>
 
@@ -375,7 +372,6 @@ onMounted(() => {
                         class="i-mdi-content-copy text-xl hover:cursor-pointer copy-btn"></span>
                 </div>
               </div>
-              <div class="w-10 ml-2.5"></div>
             </div>
           </template>
 
