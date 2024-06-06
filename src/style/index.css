@@ -24,3 +24,13 @@
 ::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
+
+pre code {
+    border-radius: 5px !important;
+    margin: 8px 0;
+}
+
+h3 {
+    font-size: 1.17em;
+    font-weight: bold;
+}

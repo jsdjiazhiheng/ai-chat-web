@@ -2,7 +2,6 @@
 import { nextTick, ref } from 'vue'
 import logo from '@/assets/logo.png'
 import { marked } from 'marked'
-import ClipboardJS from 'clipboard'
 import { addChat, delChat, listChat } from '@/api/chat'
 import { listChatMessage, sendImageMessage, sendTextMessage, streamMessage, unSubscribe } from '@/api/chat/message'
 import type { ChatVO } from '@/api/chat/types'
@@ -12,7 +11,10 @@ import { globalHeaders } from '@/utils/request'
 import type { AxiosResponse } from 'axios'
 import type { ModelVO } from '@/api/model/types'
 import ImagePreview from '@/components/ImagePreview.vue'
+import ClipboardJS from 'clipboard'
+import { useToast } from 'vue-toast-notification'
 
+const toast = useToast()
 const modelList = ref<ModelVO[]>([])
 const currentChatId = ref<number | null>(null)
 const chatType = ref<string>('text')
@@ -127,6 +129,7 @@ const eventMessage = () => {
     console.log('open', event)
   })
   let isAdd = false
+
   eventSource.addEventListener('message', (event) => {
     console.log('message', event)
     const data = event.data
@@ -134,7 +137,6 @@ const eventMessage = () => {
       console.log(data)
       const message: ChatMessageVO = JSON.parse(data)
       if (message.status === 2) {
-        //text.value += message.content
         if (!isAdd) {
           tempMessage.value = message
           isAdd = true
@@ -167,7 +169,6 @@ const eventMessage = () => {
 
 const queryChatList = async () => {
   const res: any = await listChat(chatType.value)
-  console.log(res)
   chatList.value = res.rows
   if (chatList.value.length > 0) {
     currentChatId.value = chatList.value[0].id
@@ -185,9 +186,9 @@ const queryChatMessageList = async () => {
 
 const scrollToBottom = () => {
   if (messageDivRef.value) {
-    messageDivRef.value.scrollTop = messageDivRef.value.scrollHeight;
+    messageDivRef.value.scrollTop = messageDivRef.value.scrollHeight
   }
-};
+}
 
 const getHtml = (content: string): string => {
   const res = marked.parse(content, {
@@ -203,6 +204,23 @@ const getHtml = (content: string): string => {
     })
   }
   return html
+}
+
+const handleClipboard = (content: string, index: number | null) => {
+  const selector = index !== null ? '.copy-btn-' + index : '.copy-btn'
+  const clipboard = new ClipboardJS(selector, {
+    text: () => content,
+  })
+
+  clipboard.on('success', () => {
+    toast.success('复制成功')
+    clipboard.destroy()
+  })
+
+  clipboard.on('error', (e) => {
+    toast.error('复制失败')
+    clipboard.destroy()
+  })
 }
 
 /*const queryModelList = async () => {
@@ -299,7 +317,7 @@ onMounted(() => {
             <div class="w-10 ml-2.5"></div>
           </div>
 
-          <template v-for="item in chatMessageList" :key="item.id">
+          <template v-for="(item, messageIndex) in chatMessageList" :key="item.id">
             <div
               class="flex flex-row my-3.5 items-start"
               :class="item.role === 'user' ? 'justify-end text-white' : 'justify-start text-black'">
@@ -307,7 +325,7 @@ onMounted(() => {
               <div v-if="item.role === 'assistant'" class="mr-2 px-0.5 bg-white rounded-full">
                 <span class="i-mdi-user text-4xl"></span>
               </div>
-              <div class="p-3.5 w-max flex flex-col rounded message-content"
+              <div class="py-3.5 px-6 w-max flex flex-col rounded message-content"
                    :class="item.role === 'user' ? 'bg-blue-400' : 'bg-white'">
                 <div
                   v-if="item.contentType == 'TEXT' || (item.role === 'user' && item.contentType == 'IMAGE')"
@@ -323,8 +341,11 @@ onMounted(() => {
                     />
                   </div>
                 </div>
-                <div v-if="item.role === 'assistant'" class="w-full p-2.5 mt-3.5 flex flex-row items-end justify-end">
-                  <span class="i-mdi-content-copy text-xl hover:cursor-pointer "></span>
+                <div v-if="item.role === 'assistant' && item.contentType == 'TEXT'"
+                     class="w-full p-2.5 mt-3.5 flex flex-row justify-end">
+                  <span @click="handleClipboard(item.content, messageIndex)"
+                        class="i-mdi-content-copy text-xl hover:cursor-pointer"
+                        :class="'copy-btn-' +  messageIndex"></span>
                 </div>
               </div>
               <div v-if="item.role === 'user'" class="ml-2 px-0.5 bg-blue-400 rounded-full">
@@ -347,6 +368,11 @@ onMounted(() => {
                     :image-src="image"
                     :thumbnail="image"
                   />
+                </div>
+                <div v-if="!sendBtn && tempMessage.contentType == 'TEXT'"
+                     class="w-full p-2.5 mt-3.5 flex flex-row justify-end">
+                  <span @click="handleClipboard(tempMessage.content, null)"
+                        class="i-mdi-content-copy text-xl hover:cursor-pointer copy-btn"></span>
                 </div>
               </div>
               <div class="w-10 ml-2.5"></div>
@@ -394,11 +420,9 @@ textarea::-webkit-scrollbar {
   display: none;
 }
 
-.message-content pre code {
-  border-radius: 5px !important;
-}
-
 .message-content * {
   line-height: 1.5;
 }
+
+
 </style>

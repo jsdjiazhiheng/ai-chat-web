@@ -8,6 +8,7 @@ import ToastPlugin from 'vue-toast-notification'
 import 'vue-toast-notification/dist/theme-default.css'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
+import './style/index.css'
 
 const head = createHead()
 const app = createApp(App)
