@@ -59,7 +59,11 @@ const handeAddChat = async (title: string) => {
 const handeDelChat = async (chatId: number) => {
   console.log('删除会话', chatId)
   await delChat(chatId)
+  toast.success("删除成功", {
+    position: 'top-right'
+  })
   if (chatList.value.length > 0) {
+    chatList.value = chatList.value.filter((item: ChatVO): boolean => item.id !== chatId)
     currentChatId.value = chatList.value[0].id
     queryChatMessageList()
   }
@@ -321,13 +325,13 @@ onMounted(() => {
             <div
               class="flex flex-row my-3.5 p-3.5 rounded"
               :class="item.role === 'user' ? 'text-black' : 'text-black bg-white'">
-              <div v-if="item.role === 'user'" class="mr-2 px-0.5 justify-center items-center bg-blue-400 text-white rounded-full">
+              <div v-if="item.role === 'user'" class="mr-2 px-0.5 justify-center items-center text-black rounded-full">
                 <span class="i-mdi-user text-3xl"></span>
               </div>
               <div v-if="item.role === 'assistant'" class="mr-2 px-0.5">
                 <span class="i-mdi-user text-3xl"></span>
               </div>
-              <div class="w-max flex flex-col message-content">
+              <div class="w-full flex flex-col message-content" :class="item.role === 'user' ? 'justify-center' : ''">
                 <div
                   v-if="item.contentType == 'TEXT' || (item.role === 'user' && item.contentType == 'IMAGE')"
                   v-highlight v-html="getHtml(item.content)"></div>
@@ -353,11 +357,11 @@ onMounted(() => {
           </template>
 
           <template v-if="sessionId !== null">
-            <div class="flex flex-row my-3.5 items-start justify-start text-black">
+            <div class="flex flex-row my-3.5 w-full items-start justify-start bg-white text-black">
               <div class="mr-2 px-0.5 bg-white rounded-full">
                 <span class="i-mdi-user text-4xl"></span>
               </div>
-              <div class="p-3.5 w-max message-content rounded bg-white">
+              <div class="p-3.5 w-full message-content rounded">
                 <div v-if="tempMessage.contentType == 'TEXT'" v-highlight v-html="getHtml(tempMessage.content)"></div>
                 <div v-if="tempMessage.contentType == 'IMAGE'" class="flex flex-row justify-between items-start">
                   <image-preview
