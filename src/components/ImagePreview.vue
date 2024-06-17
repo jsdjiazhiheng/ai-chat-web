@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps({
+defineProps({
   imageSrc: {
     type: String,
     required: true,
@@ -11,12 +11,11 @@ const props = defineProps({
     default: null,
   },
 })
-
 const showPreview = ref(false)
 </script>
 
 <template>
-  <div class="relative w-full">
+  <div>
     <img
       :src="thumbnail"
       alt="Thumbnail"

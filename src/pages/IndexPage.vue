@@ -13,6 +13,7 @@ import type { ModelVO } from '@/api/model/types'
 import ImagePreview from '@/components/ImagePreview.vue'
 import ClipboardJS from 'clipboard'
 import { useToast } from 'vue-toast-notification'
+import { listModel } from '@/api/model'
 
 const toast = useToast()
 const modelList = ref<ModelVO[]>([])
@@ -21,19 +22,25 @@ const chatType = ref<string>('text')
 const chatList = ref<ChatVO[]>([])
 const chatMessageList = ref<ChatMessageVO[]>([])
 const sendMessage = ref('')
-const model = ref('BAIDU')
+const model = ref<ModelVO>()
 const sessionId = ref<string | null>(null)
 const tempMessage = ref<ChatMessageVO>({} as ChatMessageVO)
 const sendBtn = ref(false)
 const messageDivRef = ref<HTMLDivElement | null>(null)
 
+const selectModel = ref<string | null>(null)
+
+watch(selectModel, (newVal) => {
+  const items: ModelVO[] = modelList.value.filter((item: ModelVO) => item.value === newVal)
+  if (items.length > 0) {
+    model.value = items[0]
+  }
+})
+
+
 const changeType = (type: string) => {
   chatType.value = type
-  if (type === 'text') {
-    model.value = 'BAIDU'
-  } else {
-    model.value = 'BAIDU'
-  }
+  queryModelList()
   queryChatList()
 }
 
@@ -48,6 +55,7 @@ const changeChat = (chatId: number | null) => {
   queryChatMessageList()
 }
 
+
 const handeAddChat = async (title: string) => {
   const res = await addChat(chatType.value, title)
   console.log(res)
@@ -59,8 +67,8 @@ const handeAddChat = async (title: string) => {
 const handeDelChat = async (chatId: number) => {
   console.log('删除会话', chatId)
   await delChat(chatId)
-  toast.success("删除成功", {
-    position: 'top-right'
+  toast.success('删除成功', {
+    position: 'top-right',
   })
   if (chatList.value.length > 0) {
     chatList.value = chatList.value.filter((item: ChatVO): boolean => item.id !== chatId)
@@ -76,9 +84,9 @@ const handeSend = async () => {
     }
     let res: AxiosResponse<ChatMessageVO>
     if (chatType.value === 'text') {
-      res = await sendTextMessage(model.value, currentChatId.value, sendMessage.value)
+      res = await sendTextMessage(model.value!.value, currentChatId.value, sendMessage.value)
     } else {
-      res = await sendImageMessage(model.value, currentChatId.value, sendMessage.value)
+      res = await sendImageMessage(model.value!.value, currentChatId.value, sendMessage.value)
     }
     chatMessageList.value.push(res.data)
     await nextTick(() => {
@@ -171,6 +179,14 @@ const eventMessage = () => {
   })
 }
 
+const queryModelList = async () => {
+  const res = await listModel(chatType.value)
+  console.log(res)
+  modelList.value = res.data
+  model.value = res.data[0]
+  selectModel.value = model.value?.value
+}
+
 const queryChatList = async () => {
   const res: any = await listChat(chatType.value)
   chatList.value = res.rows
@@ -227,13 +243,8 @@ const handleClipboard = (content: string, index: number | null) => {
   })
 }
 
-/*const queryModelList = async () => {
-  const res = await listModel()
-  modelList.value = res.data
-}*/
-
 onMounted(() => {
-  //queryModelList()
+  queryModelList()
   queryChatList()
 })
 </script>
@@ -266,8 +277,18 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="absolute bottom-0 w-full p-3.5">
-        模型：{{ model }}
+      <div class="absolute bottom-0 w-full p-3.5 flex flex-col">
+        <div class="pb-1">切换模型</div>
+        <div class="pb-1">
+          <select v-model="selectModel" class="w-full rounded border-blue-300 text-blue-600">
+            <option v-for="item in modelList" :key="item.id" :value="item.value">
+              {{ item.name }}
+            </option>
+          </select>
+        </div>
+        <div class="pb-1">模型：</div>
+        <div class="pb-1">{{ model?.name }}</div>
+        <div>{{ model?.value }}</div>
       </div>
     </div>
 
@@ -309,7 +330,8 @@ onMounted(() => {
 
       <div class="h-screen flex flex-col lg:w-8/12 md:w-10/12 sm:w-11/12">
         <!-- 可滚动的消息区域 -->
-        <div ref="messageDivRef" class="flex-grow flex flex-col w-full mt-4 rounded scroll-smooth overflow-y-auto p-4 pr-8">
+        <div ref="messageDivRef"
+             class="flex-grow flex flex-col w-full mt-4 rounded scroll-smooth overflow-y-auto p-4 pr-8">
           <div class="flex flex-row my-3.5 p-3.5 items-start justify-start rounded text-black bg-white">
             <div class="mr-2 px-0.5">
               <span class="i-mdi-user text-4xl"></span>
@@ -337,10 +359,9 @@ onMounted(() => {
                   v-highlight v-html="getHtml(item.content)"></div>
                 <div
                   v-if="item.contentType == 'IMAGE' && item.role === 'assistant'"
-                  class="flex flex-row justify-between items-start">
-                  <div class="w-1/2 m-1.5">
+                  class="grid grid-cols-2 justify-between items-start">
+                  <div v-for="(image, index) in item.imageList" :key="index" class="w-full p-1.5">
                     <image-preview
-                      v-for="(image, index) in item.imageList" :key="index"
                       :image-src="image"
                       :thumbnail="image"
                     />
@@ -363,12 +384,13 @@ onMounted(() => {
               </div>
               <div class="p-3.5 w-full message-content rounded">
                 <div v-if="tempMessage.contentType == 'TEXT'" v-highlight v-html="getHtml(tempMessage.content)"></div>
-                <div v-if="tempMessage.contentType == 'IMAGE'" class="flex flex-row justify-between items-start">
-                  <image-preview
-                    v-for="(image, index) in tempMessage.imageList" :key="index"
-                    :image-src="image"
-                    :thumbnail="image"
-                  />
+                <div v-if="tempMessage.contentType == 'IMAGE'" class="grid grid-cols-2 justify-between items-start">
+                  <div v-for="(image, index) in tempMessage.imageList" :key="index" class="w-full p-1.5">
+                    <image-preview
+                      :image-src="image"
+                      :thumbnail="image"
+                    />
+                  </div>
                 </div>
                 <div v-if="!sendBtn && tempMessage.contentType == 'TEXT'"
                      class="w-full p-2.5 mt-3.5 flex flex-row justify-end">
